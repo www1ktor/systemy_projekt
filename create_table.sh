@@ -24,7 +24,7 @@ done
 
 echo "table: $TABLE_NAME"
 
-touch "pwd | /tables/$TABLE_NAME"
+touch tables/$TABLE_NAME
 
 DATA_TYPES=""
 COLUMN_NAMES=""
@@ -34,7 +34,7 @@ while [ true ]; do
 	read choice 
 
 	if [ "$choice" = "n" ] || [ "$choice" = "N" ]; then 
-		exit 0
+		break
 	fi
 	
 	if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then 
@@ -94,7 +94,25 @@ while [ true ]; do
 		echo "There's no option like: $choice"
 	fi
 done
-echo "$DATA_TYPES>>/tables/$TABLE_NAME"
-echo "$COLUMNS_NAMES>>/tables/$TABLE_NAME"
-		
-		
+
+echo $DATA_TYPES>>tables/$TABLE_NAME
+echo $COLUMNS_NAMES>>tables/$TABLE_NAME
+
+declare -i ID=1
+
+while [ true ]; do
+	echo -n "Do you want to insert values? [Y/N]: "
+	read choice 
+
+        if [ "$choice" = "n" ] || [ "$choice" = "N" ]; then
+                break
+        fi
+
+        if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
+		echo "$ID"
+        	ID=$(($ID + 1 ))	
+
+	else
+		echo "There's no option like: $choice"
+	fi
+done
