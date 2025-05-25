@@ -24,10 +24,9 @@ done
 
 echo "table: $TABLE_NAME"
 
-touch tables/$TABLE_NAME
-
 DATA_TYPES=""
-COLUMN_NAMES=""
+COLUMNS_NAMES="ID"
+i=0
 
 while [ true ]; do 
 	echo -n "Do you want to insert column? [Y/N]: "	
@@ -40,38 +39,39 @@ while [ true ]; do
 	if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then 
 		clear
 
-		echo "T:      TEXT eg. NQL"
-		echo "I:  INTEGER eg. 2025"
-		echo "F:  FLOAT eg. 3.1415"
-		echo "B: BOOL [TRUE/FALSE]"
-		echo "H:      TIME [HH:MM]"
-		echo "D: DATE [DD-MM-YYYY]"
+		#echo "T:      TEXT eg. NQL"
+		#echo "I:  INTEGER eg. 2025"
+		#echo "F:  FLOAT eg. 3.1415"
+		#echo "B: BOOL [TRUE/FALSE]"
+		#echo "H:      TIME [HH:MM]"
+		#echo "D: DATE [DD-MM-YYYY]"
 		
-		while [ true ]; do 
-			echo -n "Enter data type [T/I/F/B/H/D]: "
-			read TYPE
-			DATA_TYPE="${TYPE^^}"
+		#while [ true ]; do 
+			#echo -n "Enter data type [T/I/F/B/H/D]: "
+			#read TYPE
+			#DATA_TYPE="${TYPE^^}"
 
-			case "$DATA_TYPE" in
-				"T") DATA_TYPE="TEXT" 
-				        break ;;
-			     	"I") DATA_TYPE="INTEGER"
-					break ;;
-				"F") DATA_TYPE="FLOAT"
-					break ;;
-				"B") DATA_TYPE="BOOL"
-					break ;;
-				"H") DATA_TYPE="TIME"
-					break ;;
-				"D") DATA_TYPE="DATE"
-					break ;;
-				*) echo "Wrong data type!" ;;
-			esac
+			#case "$DATA_TYPE" in
+				#"T") DATA_TYPE="TEXT" 
+				        #break ;;
+			     	#"I") DATA_TYPE="INTEGER"
+					#break ;;
+				#"F") DATA_TYPE="FLOAT"
+					#break ;;
+				#"B") DATA_TYPE="BOOL"
+					#break ;;
+				#"H") DATA_TYPE="TIME"
+					#break ;;
+				#"D") DATA_TYPE="DATE"
+					#break ;;
+				#*) echo "Wrong data type!" ;;
+			#esac
 			
-		done
+		#done
 
-		DATA_TYPES="$DATA_TYPES $DATA_TYPE;"
-		echo "$DATA_TYPES"
+		#DATA_TYPES="$DATA_TYPES $DATA_TYPE;"
+		#echo "$DATA_TYPES"
+
 		while [ true ]; do 
 			echo -n "Enter column name: "
 			read NAME
@@ -83,36 +83,60 @@ while [ true ]; do
 			fi
 
 			COLUMN_NAME="${COLUMN_NAME#[$'\r\t\n']}"
-
+			ATTRIBS_COLLECTION[$i]=$COLUMN_NAME
+			i=$(( $i + 1 ))
 			break
 
 		done
 
-		COLUMNS_NAMES="$COLUMNS_NAMES $COLUMN_NAME;"
+		COLUMNS_NAMES="$COLUMNS_NAMES;$COLUMN_NAME"
 		echo "$COLUMNS_NAMES"
 	else
 		echo "There's no option like: $choice"
 	fi
 done
 
-echo $DATA_TYPES>>tables/$TABLE_NAME
-echo $COLUMNS_NAMES>>tables/$TABLE_NAME
-
 declare -i ID=1
 
-while [ true ]; do
-	echo -n "Do you want to insert values? [Y/N]: "
-	read choice 
+if [ "$COLUMNS_NAMES" != "" ]; then
+        touch tables/$TABLE_NAME
+	
+	#echo ${DATA_TYPES}>>tables/$TABLE_NAME
+	echo ${COLUMNS_NAMES}>>tables/$TABLE_NAME
 
-        if [ "$choice" = "n" ] || [ "$choice" = "N" ]; then
-                break
-        fi
+	while [ true ]; do
+		echo -n "Do you want to insert values? [Y/N]: "
+		read choice 
 
-        if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
-		echo "$ID"
-        	ID=$(($ID + 1 ))	
+		if [ "$choice" = "n" ] || [ "$choice" = "N" ]; then
+	                break
+	        fi
+	
+	        if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
+			clear
 
-	else
-		echo "There's no option like: $choice"
-	fi
-done
+			csvlook tables/$TABLE_NAME
+			
+			ROW="$ID"
+        		ID=$(($ID + 1 ))
+
+			for n in  "${ATTRIBS_COLLECTION[@]}"; do
+				echo -n "$n: "
+				read ATTRIB
+				ATTRIB=${ATTRIB#[$'\r\t\n']}
+
+				if [ "$ATTRIB" == "" ]; then
+					ATTRIB="NULL"
+				fi
+
+				ROW="$ROW;$ATTRIB"
+
+               		done
+			
+			echo ${ROW}>>tables/$TABLE_NAME
+	
+		else
+			echo "There's no option like: $choice"
+		fi
+	done
+fi
