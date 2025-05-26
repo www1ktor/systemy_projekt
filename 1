@@ -1,10 +1,11 @@
-#!/bin/bash 
+#!/bin/bash
 
 KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" )
 
 parse_query() {
 	LINE=""
 	i=0
+	#dependancy on first query word, prevents from using dumb constructions 	eg. DROP "table_name" SELECT "something"
 
 	for word in $QUERY; do
 		if [[ ${KEYWORDS[@]} =~ ${word^^} ]]; then
@@ -19,7 +20,7 @@ parse_query() {
 	done
 	
 	TO_PARSE[$i]=$LINE
-	PROMPT=""
+	QUERY=""
 	for FUNCTION in "${TO_PARSE[@]}"; do
 		echo "$FUNCTION"
 		RETURN_VAL=$($FUNCTION)
@@ -32,12 +33,13 @@ parse_query() {
 		#echo $TABLE_NAME
 		#echo "$RETURN_VAL"
         done
-	
-        PROMPT="$PROMPT csvlook"
+	echo "$RETURN_VAL"
+        if [[ "$RETURN_VAL" != "" ]]; then
+                PROMPT="$PROMPT$RETURN_VAL | "
+        fi
+
 	echo "$PROMPT"
-	$PROMPT
- 
-	
+
 }
 
 FROM () {
@@ -65,9 +67,10 @@ SELECT () {
 		echo "Syntax error. No columns found!"
 		return 1
 	fi
-	
-	if [[ "$COLUMNS" == ""*"" ]]; then
-		echo "awk -F ';' '{print}'"
+
+	if [[ "$COLUMNS" == "*" ]]; then
+		echo "essa!"
+		echo "awk -F ';' {print}"
 		return 0
 	fi
 
