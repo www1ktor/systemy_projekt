@@ -2,24 +2,31 @@
 
 clear
 
-KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" )
+KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER BY" "LIMIT" )
 
 parse_query() {
-	if [[ $@ -eq 0 ]]; then
+	if [[ $# -eq 0 ]]; then
 		return 0
 	fi
 	
-	LINE=""
-	i=0
+	local LINE=""
+	local CNTR=0
+	i=-1
 
 	for word in $QUERY; do	
 		if [[ ${KEYWORDS[@]} =~ ${word^^} ]]; then
-			TO_PARSE[$i]=$LINE 		
+			if [[ "${word^^}" == "FROM" ]] || [[ "${word^^}" == "WHERE" ]]; then
+				CNTR=$(( $CNTR + 1 ))
+			fi	
+		
+			if [[ $i -ge 0 ]]; then		
+				TO_PARSE[$i]=$LINE 	
+			fi
+			
 			LINE=${word^^}
-
 			i=$(( $i + 1 ))		
 		else
-			if [[ $i -eq 0 ]]; then
+			if [[ $i -eq -1 ]]; then
 				return 1
 			fi
 			
@@ -28,6 +35,14 @@ parse_query() {
 	done
 	
 	TO_PARSE[$i]=$LINE
+	local SELECT="${TO_PARSE[0]}"
+
+	for (( x=0; x<$CNTR; ++x )); do
+		TO_PARSE[$x]=${TO_PARSE[$(( $x+1 ))]}
+	done	
+	
+	TO_PARSE[$CNTR]=$SELECT	
+
 	PROMPT=""
 	CHECK=1
 
@@ -55,7 +70,7 @@ parse_query() {
 	PROMPT=("$PROMPT csvlook -I 2>/dev/null")
 	
 	if [[ $CHECK -eq 1 ]]; then
-		clear
+		#clear
 		echo "$PROMPT"
 		echo "$QUERY"	
 		eval $PROMPT
@@ -86,8 +101,8 @@ FROM () {
 }
 
 SELECT () {
-	COLUMNS=($@)
-	N_O_COLUMNS=$#
+	local COLUMNS=($@)
+	local N_O_COLUMNS=$#
 
 	if [[ $N_O_COLUMNS -eq 0 ]]; then
 		clear
@@ -101,11 +116,11 @@ SELECT () {
 	fi
 
 	TABLE_COLUMNS=($(cat tables/$TABLE_NAME | head -1 | sed 's/;/ /g'))	       
-	COLUMNS_INDEXES=()
+	local COLUMNS_INDEXES=()
 
 	for IS_COLUMN in "${COLUMNS[@]}"; do
-		INDEX=-1
-		i=1
+		local INDEX=-1
+		local i=1
 		
 		for TABLE_COLUMN in "${TABLE_COLUMNS[@]}"; do
 			if [[ "\"$TABLE_COLUMN\"" == "$IS_COLUMN" ]]; then
@@ -118,12 +133,18 @@ SELECT () {
 
 		if [[ $INDEX -eq -1 ]]; then 
 			clear
-			echo "Syntax error! No column named $IS_COLUMN found in $TABLE_NAME"
+
+			if [[ "$TABLE_NAME" != "" ]]; then
+				echo "Syntax error! No column named $IS_COLUMN found in $TABLE_NAME"
+			else
+				echo "Syntax error! Unexpected error."
+			fi
+
 			return 1
 		fi
 	done
 
-	SEL_TEMP=" {print"
+	local SEL_TEMP=" {print"
 
 	for COLUMN_INDEX in "${COLUMNS_INDEXES[@]}"; do
 		SEL_TEMP="$SEL_TEMP $COLUMN_INDEX \";\""
@@ -135,8 +156,8 @@ SELECT () {
 	#czyszczenie zmiennych
 	COLUMNS=""
 	N_O_COLUMNS=0
-	TABLE_COLUMNS=""
 	COLUMNS_INDEXES=()
+	TABLE_COLUMNS=()
 	SEL_TEMP=""
 
 	return 0
@@ -154,18 +175,20 @@ WHERE () {
 
 	for arg in "${ARGS[@]}"; do
 		if [[ "${arg^^}" != "OR" ]] && [[ "${arg^^}" != "AND" ]]; then
-			eval $arg
+			local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
+			read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
 			
-			local COL_NAME="${arg%%=*}"
-			local COL_VALUE=""${!COL_NAME}""
-		        
+			if [[ "$OPERATOR" == "=" ]]; then
+				OPERATOR="=="
+			fi
+
 			TABLE_COLUMNS=($(cat tables/$TABLE_NAME | head -1 | sed 's/;/ /g'))
 			INDEX=-1
                 	i=1
 
                 	for TABLE_COLUMN in "${TABLE_COLUMNS[@]}"; do
                         	if [[ "\"$TABLE_COLUMN\"" == "\"$COL_NAME\"" ]]; then
-					WHR_TEMP="$WHR_TEMP \$$i==\"$COL_VALUE\" "
+					WHR_TEMP="$WHR_TEMP \$$i$OPERATOR\"$COL_VALUE\" "
                                 	INDEX=$i
 					break
                         	fi
@@ -174,7 +197,7 @@ WHERE () {
                 	done
 
                 	if [[ $INDEX -eq -1 ]]; then
-                       		clear
+                       		
 				echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
                         	return 1
                 	fi
@@ -189,6 +212,24 @@ WHERE () {
 	
 	echo $WHR_TEMP
 	
+}
+
+LIMIT () {
+	if [[ $# -eq 0 ]] || [[ $# -gt 1 ]]; then
+		clear
+		echo "Syntax error! LIMIT clause expect 1 argument, $# given."
+	elif [[ $1 =~ ^[0-9]+$ ]]; then
+		echo "head -$(($1 + 1))"
+		return 0	
+	else
+		clear
+		echo "Syntax error! LIMIT clause expect integer argument."
+	fi
+}
+
+ORDER_BY () {
+	
+
 }
 
 while [ true ]; do 
