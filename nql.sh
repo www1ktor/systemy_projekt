@@ -2,9 +2,9 @@
 
 clear
 
-KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER BY" "LIMIT" )
+KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER_BY" "LIMIT" )
 
-parse_query() {
+PARSE_QUERY () {
 	if [[ $# -eq 0 ]]; then
 		return 0
 	fi
@@ -13,9 +13,9 @@ parse_query() {
 	local CNTR=0
 	i=-1
 
-	for word in $QUERY; do	
-		if [[ ${KEYWORDS[@]} =~ ${word^^} ]]; then
-			if [[ "${word^^}" == "FROM" ]] || [[ "${word^^}" == "WHERE" ]]; then
+	for WORD in $QUERY; do	
+		if [[ $(echo ${KEYWORDS[@]} | fgrep -w ${WORD^^}) ]]; then
+			if [[ "${WORD^^}" == "FROM" ]] || [[ "${WORD^^}" == "WHERE" ]]; then
 				CNTR=$(( $CNTR + 1 ))
 			fi	
 		
@@ -23,14 +23,14 @@ parse_query() {
 				TO_PARSE[$i]=$LINE 	
 			fi
 			
-			LINE=${word^^}
+			LINE=${WORD^^}
 			i=$(( $i + 1 ))		
 		else
 			if [[ $i -eq -1 ]]; then
 				return 1
 			fi
 			
-			LINE="$LINE $word"
+			LINE="$LINE $WORD"
 		fi	       
 	done
 	
@@ -48,17 +48,17 @@ parse_query() {
 
 	for FUNCTION in "${TO_PARSE[@]}"; do
 		RETURN_VAL=$($FUNCTION)
-		#echo "$FUNCTION"	
+		echo "$FUNCTION"	
 		if [[ $? == 1 ]]; then 
 			CHECK=0		
 			echo "$RETURN_VAL"
 			break
 		fi
-		#echo "$RETURN_VAL"
+		echo "$RETURN_VAL"
 		if [[ "$RETURN_VAL" != "" ]]; then
 			PROMPT="$PROMPT$RETURN_VAL"	
 			TEMP_FUNCTION=($FUNCTION)
-			#echo $TEMP_FUNCTION
+			echo $TEMP_FUNCTION
 			if [[ "${TEMP_FUNCTION[0]}" != "FROM" ]] && [[ "${TEMP_FUNCTION[0]}" != "WHERE" ]]; then
 				PROMPT="$PROMPT | "
 			fi
@@ -100,6 +100,38 @@ FROM () {
         fi
 }
 
+DOES_COLUMN_EXISTS () { 
+	local TABLE_NAME=$1
+	local COLUMN_NAME=$2
+	
+	local TABLE_COLUMNS=($(cat tables/$TABLE_NAME | head -1 | sed 's/;/ /g'))
+	
+	for D_C_E_TABLE_COLUMN in "${TABLE_COLUMNS[@]}"; do
+	       	if [[ "\"$D_C_E_TABLE_COLUMN\"" == "$COLUMN_NAME" ]] || [[ "$D_C_E_TABLE_COLUMN" == "$COLUMN_NAME" ]]; then
+			return 0
+		fi
+	done
+
+	return 1
+}
+
+RETURN_COLUMN_INDEX () {
+	local TABLE_NAME=$1
+        local COLUMN_NAME=$2
+
+        local TABLE_COLUMNS=($(cat tables/$TABLE_NAME | head -1 | sed 's/;/ /g'))
+
+	local INDEX=1
+
+	for R_C_I_TABLE_COLUMN in "${TABLE_COLUMNS[@]}"; do
+		if [[ "\"$R_C_I_TABLE_COLUMN\"" == "$COLUMN_NAME" ]] || [[ "$R_C_I_TABLE_COLUMN" == "$COLUMN_NAME" ]]; then
+			return $INDEX
+		fi
+		
+		INDEX=$(( $INDEX + 1 ))
+	done
+}
+
 SELECT () {
 	local COLUMNS=($@)
 	local N_O_COLUMNS=$#
@@ -114,33 +146,24 @@ SELECT () {
 		echo "{print}'"
 		return 0
 	fi
-
-	TABLE_COLUMNS=($(cat tables/$TABLE_NAME | head -1 | sed 's/;/ /g'))	       
+	       
 	local COLUMNS_INDEXES=()
 
-	for IS_COLUMN in "${COLUMNS[@]}"; do
-		local INDEX=-1
-		local i=1
-		
-		for TABLE_COLUMN in "${TABLE_COLUMNS[@]}"; do
-			if [[ "\"$TABLE_COLUMN\"" == "$IS_COLUMN" ]]; then
-				COLUMNS_INDEXES+=('$'$i)
-				INDEX=$i
-			fi
+	for TABLE_COLUMN in "${COLUMNS[@]}"; do
+		DOES_COLUMN_EXISTS $TABLE_NAME $TABLE_COLUMN
+		if [[ $? -eq 0 ]]; then
+			RETURN_COLUMN_INDEX $TABLE_NAME $TABLE_COLUMN
+			COLUMNS_INDEXES+=('$'$?)
+		else
+        		clear
 
-			i=$(( $i + 1 ))
-		done
+                	if [[ "$TABLE_NAME" != "" ]]; then
+				echo "Syntax error! No column named $TABLE_COLUMN found in $TABLE_NAME"
+               		else
+               			echo "Syntax error! Unexpected error."
+              		fi
 
-		if [[ $INDEX -eq -1 ]]; then 
-			clear
-
-			if [[ "$TABLE_NAME" != "" ]]; then
-				echo "Syntax error! No column named $IS_COLUMN found in $TABLE_NAME"
-			else
-				echo "Syntax error! Unexpected error."
-			fi
-
-			return 1
+               		return 1
 		fi
 	done
 
@@ -181,27 +204,18 @@ WHERE () {
 			if [[ "$OPERATOR" == "=" ]]; then
 				OPERATOR="=="
 			fi
-
-			TABLE_COLUMNS=($(cat tables/$TABLE_NAME | head -1 | sed 's/;/ /g'))
-			INDEX=-1
-                	i=1
-
-                	for TABLE_COLUMN in "${TABLE_COLUMNS[@]}"; do
-                        	if [[ "\"$TABLE_COLUMN\"" == "\"$COL_NAME\"" ]]; then
-					WHR_TEMP="$WHR_TEMP \$$i$OPERATOR\"$COL_VALUE\" "
-                                	INDEX=$i
-					break
-                        	fi
-
-                        	i=$(( $i + 1 ))
-                	done
-
-                	if [[ $INDEX -eq -1 ]]; then
-                       		
-				echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
-                        	return 1
+                	
+			DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
+                		
+			if [[ $? -eq 0 ]]; then
+                        	RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+                		WHR_TEMP="$WHR_TEMP \$$?$OPERATOR$COL_VALUE "
+			else
+                        	clear
+                       		echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
+                               	return 1
                 	fi
-	
+
 		elif [[ "${arg^^}" == "OR" ]]; then 
 			WHR_TEMP="$WHR_TEMP|| "	
 		
@@ -228,8 +242,27 @@ LIMIT () {
 }
 
 ORDER_BY () {
-	
+	if [[ $# -eq 0 ]] || [[ $(( $# % 2 )) -eq 1  ]] ; then
+		clear
+		
+		if [[ $# -eq 0 ]]; then
+			echo "Syntax error! No argument given to ORDER_BY clause"
+		else
+			echo "Syntax error! In ORDER_BY clause"
+		fi
 
+		return 1
+	fi
+
+	local ORDER_BY_TEMP=($@)
+
+	for (( i=0; i<$#; i += 2 )); do
+		DOES_COLUMN_EXISTS ${ORDER_BY_TEMP[$i]} $TABLE_NAME
+		
+		if [[ $? -eq 0 ]]; then
+			echo "{ORDER_BY_TEMP[$(( $i + 1 ))]}"
+		fi
+	done	
 }
 
 while [ true ]; do 
@@ -241,7 +274,7 @@ while [ true ]; do
 	if [ "${QUERY^^}" == "EXIT" ]; then
 		break
 	else
-		parse_query $QUERY
+		PARSE_QUERY $QUERY
 	fi
 	
 done
