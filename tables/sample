@@ -1,4 +1,4 @@
-ID;first_name;last_name;department;position;salary;hire_date
+id;first_name;last_name;department;position;salary;hire_date
 1;Tymoteusz;Pałęga;Sales;Analyst;8064;2015-07-28
 2;Anastazja;Gmur;Finance;Consultant;6195;2015-09-27
 3;Urszula;Żynda;HR;Developer;10205;2019-11-20

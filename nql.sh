@@ -255,14 +255,30 @@ ORDER_BY () {
 	fi
 
 	local ORDER_BY_TEMP=($@)
+	local ORB_TEMP=""
 
-	for (( i=0; i<$#; i += 2 )); do
-		DOES_COLUMN_EXISTS ${ORDER_BY_TEMP[$i]} $TABLE_NAME
-		
+	for (( i = 0; i < $#; i += 2 )); do
+		DOES_COLUMN_EXISTS $TABLE_NAME ${ORDER_BY_TEMP[$i]}		
 		if [[ $? -eq 0 ]]; then
-			echo "{ORDER_BY_TEMP[$(( $i + 1 ))]}"
+			RETURN_COLUMN_INDEX $TABLE_NAME ${ORDER_BY_TEMP[$i]}
+			ORB_TEMP="$ORB_TEMP csvsort -c $?"
+
+			if [[ "${ORDER_BY_TEMP[$(( $i + 1 ))]^^}" == "DESC" ]]; then
+				ORB_TEMP="$ORB_TEMP -r"
+			fi
+			
+			if [[ $i > $(( $# - 2 )) ]]; then
+				ORB_TEMP="$ORB_TEMP |"
+			fi
+		else
+			clear
+			echo "Syntax error! No column named ${ORDER_BY_TEMP[$i]} found in ORDER_BY clause."
+			return 1
 		fi
+		
 	done	
+	
+	echo "$ORB_TEMP"
 }
 
 while [ true ]; do 
