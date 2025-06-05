@@ -2,7 +2,7 @@
 
 clear
 
-KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER_BY" "LIMIT" )
+KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER_BY" "LIMIT" "DELETE" )
 
 PARSE_QUERY () {
 	if [[ $# -eq 0 ]]; then
@@ -17,7 +17,11 @@ PARSE_QUERY () {
 		if [[ $(echo ${KEYWORDS[@]} | fgrep -w ${WORD^^}) ]]; then
 			if [[ "${WORD^^}" == "FROM" ]] || [[ "${WORD^^}" == "WHERE" ]]; then
 				CNTR=$(( $CNTR + 1 ))
-			fi	
+			fi
+			
+			if [[ "${WORD^^}" == "DELETE" ]]; then
+				IS_OPERATOR_TO_REVERSE="T"
+			fi
 		
 			if [[ $i -ge 0 ]]; then		
 				TO_PARSE[$i]=$LINE 	
@@ -77,29 +81,6 @@ PARSE_QUERY () {
 	fi
 }
 
-FROM () {
-        if [[ $# -gt 1 ]]; then
-                clear
-		echo "Syntax error. Found more than 1 table to search in!"
-                return 1
-	elif [[ $# -eq 0 ]]; then       
-       		clear
-		echo "Syntax error. No table given in FROM clause!"
-		return 1
-	fi
-
-        if [[ $(ls tables | grep -w $1) == "$1" ]]; then
-                TABLE_NAME=$1
-		echo "cat tables/$TABLE_NAME | awk -F ';' '"
-		return 0
-
-        else
-                clear
-		echo "Syntax error. No table named $1 found in FROM clause!"
-                return 1
-        fi
-}
-
 DOES_COLUMN_EXISTS () { 
 	local TABLE_NAME=$1
 	local COLUMN_NAME=$2
@@ -130,6 +111,25 @@ RETURN_COLUMN_INDEX () {
 		
 		INDEX=$(( $INDEX + 1 ))
 	done
+}
+
+REVERSE_OPERATOR () {
+	local OPERATOR=$1
+	
+	case $OPERATOR in
+		"==")
+			echo "!=" ;;
+		"!=")
+			echo "==" ;;
+		">")
+			echo "<=" ;;
+		">=")
+			echo "<" ;;
+		"<")
+			echo ">=" ;;
+		"<=")
+			echo ">" ;;
+	esac
 }
 
 SELECT () {
@@ -186,6 +186,29 @@ SELECT () {
 	return 0
 }
 
+FROM () {
+        if [[ $# -gt 1 ]]; then
+                clear
+		echo "Syntax error. Found more than 1 table to search in!"
+                return 1
+	elif [[ $# -eq 0 ]]; then       
+       		clear
+		echo "Syntax error. No table given in FROM clause!"
+		return 1
+	fi
+
+        if [[ $(ls tables | grep -w $1) == "$1" ]]; then
+                TABLE_NAME=$1
+		echo "cat tables/$TABLE_NAME | awk -F ';' '"
+		return 0
+
+        else
+                clear
+		echo "Syntax error. No table named $1 found in FROM clause!"
+                return 1
+        fi
+}
+
 WHERE () {
 	if [[ $# -eq 0 ]]; then
                 clear
@@ -203,6 +226,10 @@ WHERE () {
 			
 			if [[ "$OPERATOR" == "=" ]]; then
 				OPERATOR="=="
+			fi
+			
+			if [[ "$IS_OPERATOR_TO_REVERSE" == "T" ]]; then 
+				OPERATOR=$(REVERSE_OPERATOR $OPERATOR)
 			fi
                 	
 			DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
@@ -226,19 +253,6 @@ WHERE () {
 	
 	echo $WHR_TEMP
 	
-}
-
-LIMIT () {
-	if [[ $# -eq 0 ]] || [[ $# -gt 1 ]]; then
-		clear
-		echo "Syntax error! LIMIT clause expect 1 argument, $# given."
-	elif [[ $1 =~ ^[0-9]+$ ]]; then
-		echo "head -$(($1 + 1))"
-		return 0	
-	else
-		clear
-		echo "Syntax error! LIMIT clause expect integer argument."
-	fi
 }
 
 ORDER_BY () {
@@ -281,7 +295,25 @@ ORDER_BY () {
 	echo "$ORB_TEMP"
 }
 
+LIMIT () {
+	if [[ $# -eq 0 ]] || [[ $# -gt 1 ]]; then
+		clear
+		echo "Syntax error! LIMIT clause expect 1 argument, $# given."
+	elif [[ $1 =~ ^[0-9]+$ ]]; then
+		echo "head -$(($1 + 1))"
+		return 0	
+	else
+		clear
+		echo "Syntax error! LIMIT clause expect integer argument."
+	fi
+}
+
+DELETE () {
+	echo " {print}' > tables/$TABLE_NAME"
+}
+
 while [ true ]; do 
+	QUERY=""
 	echo -n "Enter query: "
 	read QUERY
 	
