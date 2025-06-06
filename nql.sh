@@ -2,7 +2,7 @@
 
 clear
 
-KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER_BY" "LIMIT" "DELETE" )
+KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER_BY" "LIMIT" "DELETE" "UPDATE" "SET" )
 
 PARSE_QUERY () {
 	if [[ $# -eq 0 ]]; then
@@ -11,16 +11,27 @@ PARSE_QUERY () {
 	
 	local LINE=""
 	local CNTR=0
+	IS_OPERATOR_TO_REVERSE="F" 
+	IS_UPDATE_CLAUSE="F"
+	SHORTER_UPDATE_CLAUSE="F"
 	i=-1
 
 	for WORD in $QUERY; do	
 		if [[ $(echo ${KEYWORDS[@]} | fgrep -w ${WORD^^}) ]]; then
 			if [[ "${WORD^^}" == "FROM" ]] || [[ "${WORD^^}" == "WHERE" ]]; then
 				CNTR=$(( $CNTR + 1 ))
+				
+				if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
+					SHORTER_UPDATE_CLAUSE="T"
+				fi
 			fi
 			
 			if [[ "${WORD^^}" == "DELETE" ]]; then
 				IS_OPERATOR_TO_REVERSE="T"
+			fi
+			
+			if [[ "${WORD^^}" == "SET" ]]; then
+				IS_UPDATE_CLAUSE="T"
 			fi
 		
 			if [[ $i -ge 0 ]]; then		
@@ -39,13 +50,24 @@ PARSE_QUERY () {
 	done
 	
 	TO_PARSE[$i]=$LINE
-	local SELECT="${TO_PARSE[0]}"
-
-	for (( x=0; x<$CNTR; ++x )); do
+	
+	local INDEX_TO_MOVE=0
+	local START=0
+	local STOP=$CNTR
+		
+	if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
+		START=$(( $START + 1 ))
+		STOP=$(( $STOP + 1 ))
+		INDEX_TO_MOVE=$(( $INDEX_TO_MOVE + 1 ))
+	fi
+	
+	local TO_MOVE="${TO_PARSE[$INDEX_TO_MOVE]}"
+	
+	for (( x=$START; x<$STOP; ++x )); do
 		TO_PARSE[$x]=${TO_PARSE[$(( $x+1 ))]}
 	done	
 	
-	TO_PARSE[$CNTR]=$SELECT	
+	TO_PARSE[$STOP]=$TO_MOVE	
 
 	PROMPT=""
 	CHECK=1
@@ -63,7 +85,7 @@ PARSE_QUERY () {
 			PROMPT="$PROMPT$RETURN_VAL"	
 			TEMP_FUNCTION=($FUNCTION)
 			echo $TEMP_FUNCTION
-			if [[ "${TEMP_FUNCTION[0]}" != "FROM" ]] && [[ "${TEMP_FUNCTION[0]}" != "WHERE" ]]; then
+			if [[ "${TEMP_FUNCTION[0]}" != "FROM" ]] && [[ "${TEMP_FUNCTION[0]}" != "WHERE" ]] && [[ "${TEMP_FUNCTION[0]}" != "UPDATE" ]]; then
 				PROMPT="$PROMPT | "
 			fi
 
@@ -219,6 +241,10 @@ WHERE () {
 	local ARGS=($@)
 	WHR_TEMP="\$1==\"ID\" ||"
 
+	if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
+		WHR_TEMP=""
+	fi
+
 	for arg in "${ARGS[@]}"; do
 		if [[ "${arg^^}" != "OR" ]] && [[ "${arg^^}" != "AND" ]]; then
 			local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
@@ -310,6 +336,62 @@ LIMIT () {
 
 DELETE () {
 	echo " {print}' > tables/$TABLE_NAME"
+}
+
+UPDATE () {
+        if [[ $# -gt 1 ]]; then
+                clear
+		echo "Syntax error. Found more than 1 table to update in!"
+                return 1
+	elif [[ $# -eq 0 ]]; then       
+       		clear
+		echo "Syntax error. No table given in UPDATE clause!"
+		return 1
+	fi
+
+        if [[ $(ls tables | grep -w $1) == "$1" ]]; then
+                TABLE_NAME=$1
+		if [[ "$SHORTER_UPDATE_CLAUSE" == "T" ]]; then
+			echo "cat tables/$TABLE_NAME | awk -F ';' 'BEGIN {OFS=\";\"} \$1!=\"ID\" && "	
+		else
+			echo "cat tables/$TABLE_NAME | awk -F ';' 'BEGIN {OFS=\";\"} \$1!=\"ID\" && \$1=\$1 "
+		fi
+			
+		return 0
+
+        else
+                clear
+		echo "Syntax error. No table named $1 found in UPDATE clause!"
+                return 1
+        fi
+}
+
+SET () {
+	if [[ $# -eq 0 ]]; then
+		clear
+		echo "Syntax error. No values to set!"
+	fi
+	
+	local ARGS=($@)
+	
+	for arg in "${ARGS[@]}"; do 
+		local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(\+|\-|\*|\/|\=)/ \1 /')
+		read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
+		DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
+        	
+		if [[ $? -eq 0 ]]; then
+                        RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+                	SET_TEMP="$SET_TEMP{\$$?$OPERATOR$COL_VALUE} "
+		else
+                        #clear
+                       	echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
+                        return 1
+                fi
+	
+	done
+	
+	SET_TEMP="$SET_TEMP {print}'"
+	echo "$SET_TEMP"
 }
 
 while [ true ]; do 
