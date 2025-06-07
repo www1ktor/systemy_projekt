@@ -375,8 +375,15 @@ SET () {
 	local ARGS=($@)
 	
 	for arg in "${ARGS[@]}"; do 
-		local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(\+|\-|\*|\/|\=)/ \1 /')
+		local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(\=)/ \1 /')
 		read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
+		
+		if [[ "$OPERATOR" != "=" ]]; then
+			clear
+			echo "Syntax error. Wrong operator used in SET clause."
+			return 1
+		fi
+		
 		DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
         	
 		if [[ $? -eq 0 ]]; then
