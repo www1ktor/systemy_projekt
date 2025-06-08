@@ -341,11 +341,11 @@ DELETE () {
 UPDATE () {
         if [[ $# -gt 1 ]]; then
                 clear
-		echo "Syntax error. Found more than 1 table to update in!"
+		echo "Syntax error! Found more than 1 table to update in!"
                 return 1
 	elif [[ $# -eq 0 ]]; then       
        		clear
-		echo "Syntax error. No table given in UPDATE clause!"
+		echo "Syntax error! No table given in UPDATE clause!"
 		return 1
 	fi
 
@@ -361,7 +361,7 @@ UPDATE () {
 
         else
                 clear
-		echo "Syntax error. No table named $1 found in UPDATE clause!"
+		echo "Syntax error! No table named $1 found in UPDATE clause!"
                 return 1
         fi
 }
@@ -369,13 +369,13 @@ UPDATE () {
 SET () {
 	if [[ $# -eq 0 ]]; then
 		clear
-		echo "Syntax error. No values to set!"
+		echo "Syntax error! No values to set!"
 	fi
 	
 	local ARGS=($@)
-	
+	SET_TEMP="{"
 	for arg in "${ARGS[@]}"; do 
-		local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(\=)/ \1 /')
+		local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(=)/ \1 /')
 		read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
 		
 		if [[ "$OPERATOR" != "=" ]]; then
@@ -387,17 +387,44 @@ SET () {
 		DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
         	
 		if [[ $? -eq 0 ]]; then
+                        TRY_PARSE=$(echo "$COL_VALUE" | grep -oE "\+|\-|\*|\/" | wc -l)
+
+                        if [[ $TRY_PARSE -eq 1 ]]; then
+        			local PARSED_OPERATION=$(echo "$COL_VALUE" | sed -E 's|([+*/-])| \1 |g')
+        			read LEFT_VALUE NESTED_OPERATOR RIGHT_VALUE <<< "$PARSED_OPERATION"
+            			
+        			DOES_COLUMN_EXISTS $TABLE_NAME $LEFT_VALUE
+        			
+        			if [[ $? -eq 0 ]]; then
+        				RETURN_COLUMN_INDEX $TABLE_NAME $LEFT_VALUE
+        				COL_VALUE="\$$?$NESTED_OPERATOR$RIGHT_VALUE"
+        			else
+        				DOES_COLUMN_EXISTS $TABLE_NAME $RIGHT_VALUE
+      		  			
+        				if [[ $? -eq 0 ]]; then
+        					RETURN_COLUMN_INDEX $TABLE_NAME $RIGHT_VALUE
+        					COL_VALUE="\$$?$NESTED_OPERATOR$LEFT_VALUE"
+        				else 
+        					COL_VALUE="$LEFT_VALUE$NESTED_OPERATOR$RIGHT_VALUE"
+        				fi
+        			fi
+			elif [[ $? -gt 1 ]]; then
+        			clear
+        			echo "Syntax error! SET clause expect only 1 arithmetic operator."
+        			return 1
+        		fi
+
                         RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
                 	SET_TEMP="$SET_TEMP{\$$?$OPERATOR$COL_VALUE} "
 		else
-                        #clear
+                        clear
                        	echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
                         return 1
                 fi
 	
 	done
 	
-	SET_TEMP="$SET_TEMP {print}'"
+	SET_TEMP="$SET_TEMP} {print}'"
 	echo "$SET_TEMP"
 }
 
