@@ -160,7 +160,7 @@ SELECT () {
 
 	if [[ $N_O_COLUMNS -eq 0 ]]; then
 		clear
-		echo "Syntax error. No columns found in SELECT clause!"
+		echo "Syntax error! No columns found in SELECT clause!"
 		return 1
 	fi
 	
@@ -211,11 +211,11 @@ SELECT () {
 FROM () {
         if [[ $# -gt 1 ]]; then
                 clear
-		echo "Syntax error. Found more than 1 table to search in!"
+		echo "Syntax error! Found more than 1 table to search in!"
                 return 1
 	elif [[ $# -eq 0 ]]; then       
        		clear
-		echo "Syntax error. No table given in FROM clause!"
+		echo "Syntax error! No table given in FROM clause!"
 		return 1
 	fi
 
@@ -226,7 +226,7 @@ FROM () {
 
         else
                 clear
-		echo "Syntax error. No table named $1 found in FROM clause!"
+		echo "Syntax error! No table named $1 found in FROM clause!"
                 return 1
         fi
 }
@@ -234,19 +234,68 @@ FROM () {
 WHERE () {
 	if [[ $# -eq 0 ]]; then
                 clear
-                echo "Syntax error. No conditions given in WHERE clause!"
+                echo "Syntax error! No conditions given in WHERE clause!"
                 return 1
-        fi
-
-	local ARGS=($@)
+        elif [[ $# -eq 1 ]]; then
+		local PARSED_CONDITION=$(echo "$1" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
+		read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
+			
+		if [[ "$OPERATOR" == "=" ]]; then
+			OPERATOR="=="
+		fi
+			
+		if [[ "$IS_OPERATOR_TO_REVERSE" == "T" ]]; then 
+			OPERATOR=$(REVERSE_OPERATOR $OPERATOR)
+		fi
+                	
+		DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
+        		
+		if [[ $? -eq 0 ]]; then
+                	RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+        		echo "\$1==\"ID\" || \$$?$OPERATOR$COL_VALUE "
+        		return 0
+		else
+                	clear
+               		echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
+                       	return 1
+        	fi
+	fi
+        
+        local ARGS=($@)
+	local OR_CONDITIONS=()
+	local AND_CONDITIONS=()
+	local PREVIOUS_OPERATOR=""
+	local PREVIOUS_CONDITION=""
+	
+	for arg in "${ARGS[@]}"; do
+		if [[ "${arg^^}" == "OR" ]]; then
+			OR_CONDITIONS+=($PREVIOUS_CONDITION)
+			local PREVIOUS_OPERATOR=$arg
+		elif [[ "${arg^^}" == "AND" ]]; then
+			AND_CONDITIONS+=($PREVIOUS_CONDITION)
+			local PREVIOUS_OPERATOR=$arg
+		else
+			local PREVIOUS_CONDITION=$arg
+		fi
+	done
+	
+	if [[ "${PREVIOUS_OPERATOR^^}" == "OR" ]]; then
+		OR_CONDITIONS+=($PREVIOUS_CONDITION)
+	elif [[ "${PREVIOUS_OPERATOR^^}" == "AND" ]]; then
+		AND_CONDITIONS+=($PREVIOUS_CONDITION)
+	else
+		clear
+		echo "Syntax error! Wrong condition syntax in WHERE clause."
+		return 1
+	fi
+	
 	WHR_TEMP="\$1==\"ID\" ||"
 
-	if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
-		WHR_TEMP=""
-	fi
-
-	for arg in "${ARGS[@]}"; do
-		if [[ "${arg^^}" != "OR" ]] && [[ "${arg^^}" != "AND" ]]; then
+	
+	if [[ ${#OR_CONDITIONS[@]} -gt 0 ]]; then
+		WHR_TEMP="$WHR_TEMP ("
+		
+		for arg in "${OR_CONDITIONS[@]}"; do
 			local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
 			read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
 			
@@ -262,23 +311,51 @@ WHERE () {
                 		
 			if [[ $? -eq 0 ]]; then
                         	RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
-                		WHR_TEMP="$WHR_TEMP \$$?$OPERATOR$COL_VALUE "
+				WHR_TEMP="$WHR_TEMP\$$?$OPERATOR$COL_VALUE || "
 			else
-                        	clear
+                        	#clear
                        		echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
                                	return 1
                 	fi
-
-		elif [[ "${arg^^}" == "OR" ]]; then 
-			WHR_TEMP="$WHR_TEMP|| "	
+                done
 		
-		elif [[ "${arg^^}" == "AND" ]]; then
-			WHR_TEMP="$WHR_TEMP' | awk -F ';' '\$1==\"ID\" ||"
+		WHR_TEMP="${WHR_TEMP::-4})"
+		
+		if [[ ${#AND_CONDITIONS[@]} -gt 0 ]]; then
+			WHR_TEMP="$WHR_TEMP && "
 		fi
-	done
+	fi
+	
+	if [[ ${#AND_CONDITIONS[@]} -gt 0 ]]; then		
+		for arg in "${AND_CONDITIONS[@]}"; do
+			local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
+			read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
+			
+			if [[ "$OPERATOR" == "=" ]]; then
+				OPERATOR="=="
+			fi
+			
+			if [[ "$IS_OPERATOR_TO_REVERSE" == "T" ]]; then 
+				OPERATOR=$(REVERSE_OPERATOR $OPERATOR)
+			fi
+                	
+			DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
+                		
+			if [[ $? -eq 0 ]]; then
+                        	RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+				WHR_TEMP="$WHR_TEMP\$$?$OPERATOR$COL_VALUE && "
+			else
+				#clear
+                       		echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
+                               	return 1
+                	fi
+		
+		done
+		
+		WHR_TEMP="${WHR_TEMP::-3}"
+	fi
 	
 	echo $WHR_TEMP
-	
 }
 
 ORDER_BY () {
