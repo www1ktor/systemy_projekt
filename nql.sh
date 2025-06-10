@@ -2,7 +2,7 @@
 
 clear
 
-KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER_BY" "LIMIT" "DELETE" "UPDATE" "SET" )
+KEYWORDS=( "SHOW" "DROP" "SELECT" "FROM" "WHERE" "ORDER_BY" "LIMIT" "DELETE" "UPDATE" "SET" "INSERT_INTO" "VALUES")
 
 PARSE_QUERY () {
 	if [[ $# -eq 0 ]]; then
@@ -96,8 +96,8 @@ PARSE_QUERY () {
 	PROMPT=("$PROMPT csvlook -I 2>/dev/null")
 	
 	if [[ $CHECK -eq 1 ]]; then
-		#clear
-		echo "$PROMPT"
+		clear
+		#echo "$PROMPT"
 		echo "$QUERY"	
 		eval $PROMPT
 	fi
@@ -374,7 +374,7 @@ ORDER_BY () {
 	local ORDER_BY_TEMP=($@)
 	local ORB_TEMP=""
 
-	for (( i = 0; i < $#; i += 2 )); do
+	for (( i = $# - 2; i >= 0; i -= 2 )); do
 		DOES_COLUMN_EXISTS $TABLE_NAME ${ORDER_BY_TEMP[$i]}		
 		if [[ $? -eq 0 ]]; then
 			RETURN_COLUMN_INDEX $TABLE_NAME ${ORDER_BY_TEMP[$i]}
@@ -384,8 +384,8 @@ ORDER_BY () {
 				ORB_TEMP="$ORB_TEMP -r"
 			fi
 			
-			if [[ $i > $(( $# - 2 )) ]]; then
-				ORB_TEMP="$ORB_TEMP |"
+			if [[ $i -ge 2 ]]; then
+				ORB_TEMP="$ORB_TEMP | "
 			fi
 		else
 			clear
@@ -504,6 +504,7 @@ SET () {
 	SET_TEMP="$SET_TEMP} {print}'"
 	echo "$SET_TEMP"
 }
+
 
 while [ true ]; do 
 	QUERY=""

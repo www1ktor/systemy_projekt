@@ -38,40 +38,10 @@ while [ true ]; do
 	
 	if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then 
 		clear
-
-		#echo "T:      TEXT eg. NQL"
-		#echo "I:  INTEGER eg. 2025"
-		#echo "F:  FLOAT eg. 3.1415"
-		#echo "B: BOOL [TRUE/FALSE]"
-		#echo "H:      TIME [HH:MM]"
-		#echo "D: DATE [DD-MM-YYYY]"
 		
-		#while [ true ]; do 
-			#echo -n "Enter data type [T/I/F/B/H/D]: "
-			#read TYPE
-			#DATA_TYPE="${TYPE^^}"
-
-			#case "$DATA_TYPE" in
-				#"T") DATA_TYPE="TEXT" 
-				        #break ;;
-			     	#"I") DATA_TYPE="INTEGER"
-					#break ;;
-				#"F") DATA_TYPE="FLOAT"
-					#break ;;
-				#"B") DATA_TYPE="BOOL"
-					#break ;;
-				#"H") DATA_TYPE="TIME"
-					#break ;;
-				#"D") DATA_TYPE="DATE"
-					#break ;;
-				#*) echo "Wrong data type!" ;;
-			#esac
-			
-		#done
-
-		#DATA_TYPES="$DATA_TYPES $DATA_TYPE;"
-		#echo "$DATA_TYPES"
-
+		echo "table: $TABLE_NAME"
+		echo
+	
 		while [ true ]; do 
 			echo -n "Enter column name: "
 			read NAME
@@ -79,29 +49,32 @@ while [ true ]; do
 			COLUMN_NAME="${NAME#[$'\r\t\n']}"
 
 			if [ "$COLUMN_NAME" = "" ]; then 
-				echo "Column's name is empty!"
+				echo "Syntax error! Column's name is empty."
+			elif [[ $(echo "$COLUMN_NAME" | grep " " | wc -l) -gt 0 ]]; then
+				echo "Syntax error! Column's name cannot cointain space."
+			elif [[ $(echo ${ATTRIBS_COLLECTION[@]} | grep -w "$COLUMN_NAME" | wc -l) -gt 0 ]]; then
+				echo "Syntax error! Column's named $COLUMN_NAME already exists."
+		       	else
+				COLUMN_NAME="${COLUMN_NAME#[$'\r\t\n']}"
+				ATTRIBS_COLLECTION[$i]=$COLUMN_NAME
+				i=$(( $i + 1 ))
+				break
 			fi
-
-			COLUMN_NAME="${COLUMN_NAME#[$'\r\t\n']}"
-			ATTRIBS_COLLECTION[$i]=$COLUMN_NAME
-			i=$(( $i + 1 ))
-			break
 
 		done
 
 		COLUMNS_NAMES="$COLUMNS_NAMES;$COLUMN_NAME"
 		echo "$COLUMNS_NAMES"
 	else
-		echo "There's no option like: $choice"
+		echo "Syntax error! There's no option like: $choice."
 	fi
 done
 
-declare -i ID=1
+ID=1
 
 if [ "$COLUMNS_NAMES" != "" ]; then
         touch tables/$TABLE_NAME
 	
-	#echo ${DATA_TYPES}>>tables/$TABLE_NAME
 	echo ${COLUMNS_NAMES}>>tables/$TABLE_NAME
 
 	while [ true ]; do
@@ -115,7 +88,7 @@ if [ "$COLUMNS_NAMES" != "" ]; then
 	        if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
 			clear
 
-			csvlook tables/$TABLE_NAME
+			csvlook -I tables/$TABLE_NAME
 			
 			ROW="$ID"
         		ID=$(($ID + 1 ))
@@ -136,7 +109,7 @@ if [ "$COLUMNS_NAMES" != "" ]; then
 			echo ${ROW}>>tables/$TABLE_NAME
 	
 		else
-			echo "There's no option like: $choice"
+			echo "Syntax error! There's no option like: $choice."
 		fi
 	done
 fi

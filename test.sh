@@ -1,15 +1,8 @@
 #!/bin/bash
 
-i=0
+ID_LIST=$(cat tables/sample | awk -F ';' '{print $1}')
+ID_LIST=(123 4 234 44 2399 43 111 3)
 
-COL_VALUE="sample*2"
-TRY_PARSE=$(echo "$COL_VALUE" | grep -oE "\+|\-|\*|\/" | wc -l)
+IFS=$'\n' SORTED=($(sort -n <<< "${ID_LIST[*]}"))
 
-if [[ $TRY_PARSE -eq 1 ]]; then
-	PARSED_OPERATION=$(echo "$COL_VALUE" | sed -E 's/(\+\-\*\/)/ \1 /')
-	read A B C <<< "$PARSED_OPERATION"
-else
-	echo "huj!"
-fi
-
-echo $A $B $C
+echo "${SORTED[@]}"
