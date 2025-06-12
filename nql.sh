@@ -15,6 +15,8 @@ PARSE_QUERY () {
 	IS_UPDATE_CLAUSE="F"
 	SHORTER_UPDATE_CLAUSE="F"
 	i=-1
+	
+	TO_PARSE=()
 
 	for WORD in $QUERY; do	
 		if [[ $(echo ${KEYWORDS[@]} | fgrep -w ${WORD^^}) ]]; then
@@ -78,7 +80,7 @@ PARSE_QUERY () {
 		if [[ $? == 1 ]]; then 
 			CHECK=0		
 			echo "$RETURN_VAL"
-			break
+			return 0
 		fi
 		echo "$RETURN_VAL"
 		if [[ "$RETURN_VAL" != "" ]]; then
@@ -93,14 +95,15 @@ PARSE_QUERY () {
 		fi
         done
 	
-	PROMPT=("$PROMPT csvlook -I 2>/dev/null")
-	
 	if [[ $CHECK -eq 1 ]]; then
 		clear
-		#echo "$PROMPT"
-		echo "$QUERY"	
-		eval $PROMPT
+		echo "$PROMPT"
+		echo "$QUERY"
+		PROMPT=("$PROMPT csvlook -I 2>/dev/null")
+		eval $PROMPT 
 	fi
+	
+	return 0
 }
 
 DOES_COLUMN_EXISTS () { 
@@ -133,6 +136,8 @@ RETURN_COLUMN_INDEX () {
 		
 		INDEX=$(( $INDEX + 1 ))
 	done
+	
+	return 0
 }
 
 REVERSE_OPERATOR () {
@@ -152,6 +157,8 @@ REVERSE_OPERATOR () {
 		"<=")
 			echo ">" ;;
 	esac
+	
+	return 0
 }
 
 SELECT () {
@@ -229,6 +236,8 @@ FROM () {
 		echo "Syntax error! No table named $1 found in FROM clause!"
                 return 1
         fi
+        
+        return 0
 }
 
 WHERE () {
@@ -251,8 +260,14 @@ WHERE () {
 		DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
         		
 		if [[ $? -eq 0 ]]; then
-                	RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
-        		echo "\$1==\"ID\" || \$$?$OPERATOR$COL_VALUE "
+        		if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
+        			RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+        			echo "\$1!=\"ID\" && \$$?$OPERATOR$COL_VALUE "
+        		else
+        			RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+        			echo "\$1==\"ID\" || \$$?$OPERATOR$COL_VALUE "
+        		fi
+        		
         		return 0
 		else
                 	clear
@@ -289,7 +304,11 @@ WHERE () {
 		return 1
 	fi
 	
-	WHR_TEMP="\$1==\"ID\" ||"
+	if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
+		WHR_TEMP="\$1!=\"ID\" ||"
+	else
+		WHR_TEMP="\$1==\"ID\" ||"
+	fi
 
 	
 	if [[ ${#OR_CONDITIONS[@]} -gt 0 ]]; then
@@ -356,6 +375,8 @@ WHERE () {
 	fi
 	
 	echo $WHR_TEMP
+	
+	return 0
 }
 
 ORDER_BY () {
@@ -396,6 +417,8 @@ ORDER_BY () {
 	done	
 	
 	echo "$ORB_TEMP"
+	
+	return 0
 }
 
 LIMIT () {
@@ -429,7 +452,7 @@ UPDATE () {
         if [[ $(ls tables | grep -w $1) == "$1" ]]; then
                 TABLE_NAME=$1
 		if [[ "$SHORTER_UPDATE_CLAUSE" == "T" ]]; then
-			echo "cat tables/$TABLE_NAME | awk -F ';' 'BEGIN {OFS=\";\"} \$1!=\"ID\" && "	
+			echo "cat tables/$TABLE_NAME | awk -F ';' 'BEGIN {OFS=\";\"}"	
 		else
 			echo "cat tables/$TABLE_NAME | awk -F ';' 'BEGIN {OFS=\";\"} \$1!=\"ID\" && \$1=\$1 "
 		fi
@@ -441,6 +464,8 @@ UPDATE () {
 		echo "Syntax error! No table named $1 found in UPDATE clause!"
                 return 1
         fi
+        
+        return 0
 }
 
 SET () {
@@ -455,7 +480,7 @@ SET () {
 		local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(=)/ \1 /')
 		read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
 		
-		if [[ "$OPERATOR" != "=" ]]; then
+		if [[ "$OPERATOR" != "=" ]] || [[ "$OPERATOR" == "" ]]; then
 			clear
 			echo "Syntax error. Wrong operator used in SET clause."
 			return 1
@@ -503,8 +528,158 @@ SET () {
 	
 	SET_TEMP="$SET_TEMP} {print}'"
 	echo "$SET_TEMP"
+	
+	return 0
 }
 
+INSERT_INTO () { 
+	if [[ $# -eq 0 ]]; then
+		clear
+		echo "Syntax error! No arguments given to INSERT INTO clause."
+		return 1
+	fi
+	
+	
+	if [[ $(ls tables | grep -w $1) == "$1" ]]; then
+                TABLE_NAME=$1
+        else 
+        	clear
+        	echo "Syntax error! No table named $1 found in INSERT INTO clause."
+        	return 1
+        fi
+	
+	COLUMN_INDEXES=()
+	
+	if [[ $# -eq 1 ]]; then
+		N_O_COLS=$(cat tables/$TABLE_NAME | head -1 | grep -oE ";" | wc -l)
+		echo "INSERT INTO eq 0 $N_O_COLS"
+		for (( i = 2; i <= $(( N_O_COLS + 1 )); ++i )); do
+			COLUMN_INDEXES+=($i)
+		done
+		
+		return 0
+	fi
+	
+	INSERT_INTO_ARGS=($@)
+	N_O_COLS=$(( $# - 1 ))
+	
+	echo "INSERT INTO gt 0 $N_O_COLS"
+	for (( i = 1; i < $#; ++i )); do
+		echo "${INSERT_INTO_ARGS[$i]} $i"
+		
+		DOES_COLUMN_EXISTS $TABLE_NAME ${INSERT_INTO_ARGS[$i]}
+		
+		if [[ $? -eq 0 ]]; then
+			RETURN_COLUMN_INDEX $TABLE_NAME ${INSERT_INTO_ARGS[$i]}
+			COLUMN_INDEXES+=($?)
+		else
+			clear
+			echo "Syntax error! No column named ${INSERT_INTO_ARGS[$i]} found in $TABLE_NAME table."
+			return 1
+		fi
+		
+	done
+	
+	return 0
+}
+
+VALUES () {
+	if [[ $# -eq 0 ]]; then
+		clear
+		echo "Syntax error! No arguments given to INSERT INTO clause."
+		return 1
+	fi
+	
+	VALUES_ARGS="$*"
+	TEMP_VALUES=()
+	COLUMN_INDEXES=$COLUMN_INDEXES
+	N_O_COLUMNS=$N_O_COLS
+	IS_WORD_BEING_PROCESSED="F"
+	LINE=""
+	LINES=()
+	#DOUBLE_CHECK_VALUES_CLAUSE=$DOUBLE_CHECK_VALUES_CLAUSE
+
+	for (( i = 0; i < ${#VALUES_ARGS}; ++i )); do
+		CHAR=${VALUES_ARGS:i:1}
+		
+		if [[ "$CHAR" == "(" ]]; then
+			continue
+		elif [[ "$CHAR" == ")" ]]; then
+			if [[ "$IS_WORD_BEING_PROCESSED" == "F" ]]; then
+				TEMP_VALUES+=("|")
+			fi
+		elif [[ "$CHAR" == "\"" ]]; then
+			if [[ "$IS_WORD_BEING_PROCESSED" == "T" ]]; then
+				IS_WORD_BEING_PROCESSED="F"
+				TEMP_VALUES+=("$WORD")
+			else
+				IS_WORD_BEING_PROCESSED="T"
+				WORD=""
+			
+			fi
+		else
+			WORD="$WORD$CHAR"
+		fi
+	done
+	
+	CNTR=0
+	
+	for INITIALLY_PARSED in "${TEMP_VALUES[@]}"; do 
+		if [[ "$INITIALLY_PARSED" == "|" ]]; then
+			if [[ $CNTR -eq $N_O_COLUMNS ]]; then
+				PARSED=()
+				
+				for (( i = 0; i < N_O_COLUMNS; ++i )); do
+					INDEX=${COLUMN_INDEXES[$i]}
+					PARSED[$INDEX]=${PREPARSED_LINE[$i]}
+				done
+				
+				ID_LIST=$(cat tables/$TABLE_NAME | awk -F ';' '{print $1}')
+				IFS=$'\n' SORTED_ID_LIST=($(sort -n <<< "${ID_LIST[*]}"))
+				
+				CURR_ID=1
+				
+				for (( i = 1; i <= ${#ID_LIST}; ++i )); do
+					if [[ $(echo ${ID_LIST[@]} | grep -w "$i") ]]; then
+						continue
+					else
+						CURR_ID=$i
+						ID_LIST+=($CURR_ID)
+						break
+					fi
+				done
+				
+				LINE="$CURR_ID"
+				TABLE_WIDTH=$(cat tables/$TABLE_NAME | head -1 | grep -oE ";" | wc -l)
+
+				for (( i = 2; i <= $(( $TABLE_WIDTH + 1 )); ++i)); do
+					if [[ $(echo ${COLUMN_INDEXES[@]} | grep -w "$i") ]]; then
+						LINE="$LINE;${PARSED[$i]}"
+					else
+						LINE="$LINE;"
+					fi
+				done
+				
+				LINES+=("$LINE")
+				PREPARSED_LINE=()
+				CNTR=0
+			else
+				clear
+				echo "Syntax error! $CNTR arguments passed, $N_O_COLUMNS expected in VALUES clause."
+				return 1
+			fi
+		else
+			PREPARSED_LINE+=("$INITIALLY_PARSED")
+			local CNTR=$(( $CNTR + 1 ))
+		fi
+	done	
+		
+	for line in "${LINES[@]}"; do
+		echo $line >> tables/$TABLE_NAME
+	done
+	
+	return 0
+} 
 
 while [ true ]; do 
 	QUERY=""
@@ -516,6 +691,7 @@ while [ true ]; do
 	if [ "${QUERY^^}" == "EXIT" ]; then
 		break
 	else
+		clear
 		PARSE_QUERY $QUERY
 	fi
 	
