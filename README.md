@@ -9,8 +9,6 @@ wszystkich klauzul, jednakże celem jest dowiezienie
 możliwie największej ilości.
 
 
-DO POPRAWY: czyszczenie zmiennych -> po każdym zapytaniu
-najlepiej wyjsc i wejsc do programu!!! klauzula 
-insert into jest w drodze. parser tabel. dokumentacja.
+DO POPRAWY: czyszczenie zmiennych ->. parser tabel. dokumentacja.
 
-do srody 13:30 wszystko bedzie gotowe :)
+
