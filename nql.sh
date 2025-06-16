@@ -96,7 +96,7 @@ PARSE_QUERY () {
         done
 	
 	if [[ $CHECK -eq 1 ]]; then
-		clear
+		#clear
 		echo "$PROMPT"
 		echo "$QUERY"
 		PROMPT=("$PROMPT csvlook -I 2>/dev/null")

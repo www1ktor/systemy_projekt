@@ -3,12 +3,12 @@ mającym za zadanie odtworzyć logikę funkcjonowania
 środowiska SQL. prefiks nano odnosi się do jego
 ograniczonej względem środowiska SQL funkcjonalności.
 celem projektu jest zaprojektowanie środowiska o
-najbardziej zbliżonej składni kwerend. z racji ram
-czasowych, nie mam możliwości zaimplementowania 
-wszystkich klauzul, jednakże celem jest dowiezienie
-możliwie największej ilości.
+najbardziej zbliżonej składni kwerend.
 
 
-DO POPRAWY: czyszczenie zmiennych ->. parser tabel. dokumentacja.
+DO POPRAWY: czyszczenie zmiennych.
+wprowadzanie zapytań. 
+parser tabel. 
+dokumentacja.
 
 
