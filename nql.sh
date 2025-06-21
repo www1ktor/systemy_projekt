@@ -623,6 +623,8 @@ VALUES () {
 	done
 	
 	CNTR=0
+
+	ID_LIST=($(cat tables/$TABLE_NAME | sed 's/^ID.*//;/^$/d' | awk -F ';' '{print $1}'))
 	
 	for INITIALLY_PARSED in "${TEMP_VALUES[@]}"; do 
 		if [[ "$INITIALLY_PARSED" == "|" ]]; then
@@ -634,21 +636,25 @@ VALUES () {
 					PARSED[$INDEX]=${PREPARSED_LINE[$i]}
 				done
 				
-				ID_LIST=$(cat tables/$TABLE_NAME | awk -F ';' '{print $1}')
-				IFS=$'\n' SORTED_ID_LIST=($(sort -n <<< "${ID_LIST[*]}"))
+
 				
-				CURR_ID=1
-				
-				for (( i = 1; i <= ${#ID_LIST}; ++i )); do
+				CURR_ID=0
+
+				for (( i = 1; i <= ${#ID_LIST[@]}; ++i )); do
 					if [[ $(echo ${ID_LIST[@]} | grep -w "$i") ]]; then
 						continue
 					else
 						CURR_ID=$i
-						ID_LIST+=($CURR_ID)
+						ID_LIST+=("$CURR_ID")
 						break
 					fi
 				done
 				
+				if [[ $CURR_ID -eq 0 ]]; then 
+					CURR_ID=$(( ${#ID_LIST[@]} + 1 ))
+					ID_LIST+=("$CURR_ID")
+				fi
+
 				LINE="$CURR_ID"
 				TABLE_WIDTH=$(cat tables/$TABLE_NAME | head -1 | grep -oE ";" | wc -l)
 
