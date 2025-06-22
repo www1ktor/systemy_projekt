@@ -14,6 +14,7 @@ PARSE_QUERY () {
 	IS_OPERATOR_TO_REVERSE="F" 
 	IS_UPDATE_CLAUSE="F"
 	SHORTER_UPDATE_CLAUSE="F"
+	IS_DELETE_WITHOUT_WHERE="T"
 	i=-1
 	
 	TO_PARSE=()
@@ -25,6 +26,10 @@ PARSE_QUERY () {
 				
 				if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
 					SHORTER_UPDATE_CLAUSE="T"
+				fi
+
+				if [[ "${WORD^^}" == "WHERE" ]]; then
+					IS_DELETE_WITHOUT_WHERE="F"
 				fi
 			fi
 			
@@ -246,136 +251,52 @@ WHERE () {
                 clear
                 echo "Syntax error! No conditions given in WHERE clause!"
                 return 1
-        elif [[ $# -eq 1 ]]; then
-		local PARSED_CONDITION=$(echo "$1" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
-		read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
-			
-		if [[ "$OPERATOR" == "=" ]]; then
-			OPERATOR="=="
-		fi
-			
-		if [[ "$IS_OPERATOR_TO_REVERSE" == "T" ]]; then 
-			OPERATOR=$(REVERSE_OPERATOR $OPERATOR)
-		fi
-                	
-		DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
-        		
-		if [[ $? -eq 0 ]]; then
-        		if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
-        			RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
-        			echo "\$1!=\"ID\" && \$$?$OPERATOR$COL_VALUE "
-        		else
-        			RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
-        			echo "\$1==\"ID\" || \$$?$OPERATOR$COL_VALUE "
-        		fi
-        		
-        		return 0
-		else
-                	clear
-               		echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
-                       	return 1
-        	fi
-	fi
+        fi
         
         local ARGS=($@)
-	local OR_CONDITIONS=()
-	local AND_CONDITIONS=()
-	local PREVIOUS_OPERATOR=""
-	local PREVIOUS_CONDITION=""
-	
-	for arg in "${ARGS[@]}"; do
-		if [[ "${arg^^}" == "OR" ]]; then
-			OR_CONDITIONS+=($PREVIOUS_CONDITION)
-			local PREVIOUS_OPERATOR=$arg
-		elif [[ "${arg^^}" == "AND" ]]; then
-			AND_CONDITIONS+=($PREVIOUS_CONDITION)
-			local PREVIOUS_OPERATOR=$arg
-		else
-			local PREVIOUS_CONDITION=$arg
-		fi
-	done
-	
-	if [[ "${PREVIOUS_OPERATOR^^}" == "OR" ]]; then
-		OR_CONDITIONS+=($PREVIOUS_CONDITION)
-	elif [[ "${PREVIOUS_OPERATOR^^}" == "AND" ]]; then
-		AND_CONDITIONS+=($PREVIOUS_CONDITION)
-	else
-		clear
-		echo "Syntax error! Wrong condition syntax in WHERE clause."
-		return 1
-	fi
-	
+
 	if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
 		WHR_TEMP="\$1!=\"ID\" ||"
 	else
 		WHR_TEMP="\$1==\"ID\" ||"
 	fi
 
-	
-	if [[ ${#OR_CONDITIONS[@]} -gt 0 ]]; then
-		WHR_TEMP="$WHR_TEMP ("
+	WHR_TEMP="$WHR_TEMP ("
 		
-		for arg in "${OR_CONDITIONS[@]}"; do
+	for arg in "${ARGS[@]}"; do
+		if [[ "${arg^^}" == "OR" ]] || [[ "${arg^^}" == "AND" ]]; then
+			if [[ "${arg^^}" == "OR" ]]; then
+				WHR_TEMP="$WHR_TEMP || "
+			else
+				WHR_TEMP="$WHR_TEMP && "
+			fi
+		else
 			local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
 			read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
-			
+				
 			if [[ "$OPERATOR" == "=" ]]; then
 				OPERATOR="=="
 			fi
-			
+				
 			if [[ "$IS_OPERATOR_TO_REVERSE" == "T" ]]; then 
 				OPERATOR=$(REVERSE_OPERATOR $OPERATOR)
 			fi
-                	
+	                	
 			DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
-                		
+	                		
 			if [[ $? -eq 0 ]]; then
-                        	RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
-				WHR_TEMP="$WHR_TEMP\$$?$OPERATOR$COL_VALUE || "
+	                        RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+				WHR_TEMP="$WHR_TEMP\$$?$OPERATOR$COL_VALUE"
 			else
-                        	#clear
-                       		echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
-                               	return 1
-                	fi
-                done
-		
-		WHR_TEMP="${WHR_TEMP::-4})"
-		
-		if [[ ${#AND_CONDITIONS[@]} -gt 0 ]]; then
-			WHR_TEMP="$WHR_TEMP && "
-		fi
-	fi
+	           		#clear
+	                      	echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
+	                	return 1
+	        	fi
+       		fi
+        done
 	
-	if [[ ${#AND_CONDITIONS[@]} -gt 0 ]]; then		
-		for arg in "${AND_CONDITIONS[@]}"; do
-			local PARSED_CONDITION=$(echo "$arg" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
-			read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
-			
-			if [[ "$OPERATOR" == "=" ]]; then
-				OPERATOR="=="
-			fi
-			
-			if [[ "$IS_OPERATOR_TO_REVERSE" == "T" ]]; then 
-				OPERATOR=$(REVERSE_OPERATOR $OPERATOR)
-			fi
-                	
-			DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
-                		
-			if [[ $? -eq 0 ]]; then
-                        	RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
-				WHR_TEMP="$WHR_TEMP\$$?$OPERATOR$COL_VALUE && "
-			else
-				#clear
-                       		echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
-                               	return 1
-                	fi
-		
-		done
-		
-		WHR_TEMP="${WHR_TEMP::-3}"
-	fi
 	
-	echo $WHR_TEMP
+	echo "$WHR_TEMP) "
 	
 	return 0
 }
@@ -436,7 +357,11 @@ LIMIT () {
 }
 
 DELETE () {
-	echo " {print}' > tables/$TABLE_NAME"
+	if [[ "$IS_DELETE_WITHOUT_WHERE" == "T" ]]; then
+		echo "\$1==\"ID\" {print}' > tables/$TABLE_NAME"
+	else
+		echo " {print}' > tables/$TABLE_NAME"
+	fi
 }
 
 UPDATE () {
@@ -453,7 +378,7 @@ UPDATE () {
         if [[ $(ls tables | grep -w $1) == "$1" ]]; then
                 TABLE_NAME=$1
 		if [[ "$SHORTER_UPDATE_CLAUSE" == "T" ]]; then
-			echo "cat tables/$TABLE_NAME | awk -F ';' 'BEGIN {OFS=\";\"}"	
+			echo "cat tables/$TABLE_NAME | awk -F ';' 'BEGIN {OFS=\";\"} "	
 		else
 			echo "cat tables/$TABLE_NAME | awk -F ';' 'BEGIN {OFS=\";\"} \$1!=\"ID\" && \$1=\$1 "
 		fi
@@ -553,7 +478,7 @@ INSERT_INTO () {
 	
 	if [[ $# -eq 1 ]]; then
 		N_O_COLS=$(cat tables/$TABLE_NAME | head -1 | grep -oE ";" | wc -l)
-		echo "INSERT INTO eq 0 $N_O_COLS"
+		
 		for (( i = 2; i <= $(( N_O_COLS + 1 )); ++i )); do
 			COLUMN_INDEXES+=($i)
 		done
@@ -564,10 +489,8 @@ INSERT_INTO () {
 	INSERT_INTO_ARGS=($@)
 	N_O_COLS=$(( $# - 1 ))
 	
-	echo "INSERT INTO gt 0 $N_O_COLS"
+
 	for (( i = 1; i < $#; ++i )); do
-		echo "${INSERT_INTO_ARGS[$i]} $i"
-		
 		DOES_COLUMN_EXISTS $TABLE_NAME ${INSERT_INTO_ARGS[$i]}
 		
 		if [[ $? -eq 0 ]]; then

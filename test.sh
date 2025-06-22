@@ -1,26 +1,30 @@
-#!/bin/bash
-
-ID_LIST=($(cat tables/test | sed 's/^ID.*//;/^$/d' | awk -F ';' '{print $1}'))
-
-for (( x = 0; x < 5; ++x )); do
-	CURR_ID=0
-
-	for (( i = 1; i <= ${#ID_LIST[@]}; ++i )); do
-		if [[ $(echo ${ID_LIST[@]} | grep -w "$i") ]]; then
-			continue
-		else
-			CURR_ID=$i
-			ID_LIST+=("$CURR_ID")
-			break
+        elif [[ $# -eq 1 ]]; then
+		local PARSED_CONDITION=$(echo "$1" | sed -E 's/(<=|>=|==|!=|=|<|>)/ \1 /')
+		read COL_NAME OPERATOR COL_VALUE <<< "$PARSED_CONDITION"
+			
+		if [[ "$OPERATOR" == "=" ]]; then
+			OPERATOR="=="
 		fi
-
-	done
-					
-	if [[ $CURR_ID -eq 0 ]]; then 
-		CURR_ID=$(( ${#ID_LIST[@]} + 1 ))
-		ID_LIST+=("$CURR_ID")
+			
+		if [[ "$IS_OPERATOR_TO_REVERSE" == "T" ]]; then 
+			OPERATOR=$(REVERSE_OPERATOR $OPERATOR)
+		fi
+                	
+		DOES_COLUMN_EXISTS $TABLE_NAME $COL_NAME
+        		
+		if [[ $? -eq 0 ]]; then
+        		if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
+        			RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+        			echo "\$1!=\"ID\" && \$$?$OPERATOR$COL_VALUE "
+        		else
+        			RETURN_COLUMN_INDEX $TABLE_NAME $COL_NAME
+        			echo "\$1==\"ID\" || \$$?$OPERATOR$COL_VALUE "
+        		fi
+        		
+        		return 0
+		else
+                	clear
+               		echo "Syntax error! No column named $COL_NAME found in $TABLE_NAME"
+                       	return 1
+        	fi
 	fi
-
-	echo $CURR_ID 
-	echo ${ID_LIST[@]}
-done
