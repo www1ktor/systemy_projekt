@@ -76,13 +76,14 @@ PARSE_QUERY () {
 
 	for FUNCTION in "${TO_PARSE[@]}"; do
 		RETURN_VAL=$($FUNCTION)
-		echo "$FUNCTION"	
+		#echo "$FUNCTION"	
 		if [[ $? == 1 ]]; then 
-			CHECK=0		
+			CHECK=0	
 			echo "$RETURN_VAL"
+			echo "$QUERY"
 			return 0
 		fi
-		echo "$RETURN_VAL"
+		#echo "$RETURN_VAL"
 		if [[ "$RETURN_VAL" != "" ]]; then
 			PROMPT="$PROMPT$RETURN_VAL"	
 			TEMP_FUNCTION=($FUNCTION)
@@ -96,11 +97,11 @@ PARSE_QUERY () {
         done
 	
 	if [[ $CHECK -eq 1 ]]; then
-		#clear
-		echo "$PROMPT"
+		clear
 		echo "$QUERY"
 		PROMPT=("$PROMPT csvlook -I 2>/dev/null")
 		eval $PROMPT 
+		echo "$PROMPT"
 	fi
 	
 	return 0
@@ -635,8 +636,6 @@ VALUES () {
 					INDEX=${COLUMN_INDEXES[$i]}
 					PARSED[$INDEX]=${PREPARSED_LINE[$i]}
 				done
-				
-
 				
 				CURR_ID=0
 
