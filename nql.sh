@@ -11,11 +11,13 @@ PARSE_QUERY () {
 	
 	local LINE=""
 	local CNTR=0
+	
 	IS_OPERATOR_TO_REVERSE="F" 
 	IS_UPDATE_CLAUSE="F"
 	SHORTER_UPDATE_CLAUSE="F"
 	IS_DELETE_WITHOUT_WHERE="T"
-	i=-1
+	
+	local i=-1
 	
 	TO_PARSE=()
 
@@ -193,7 +195,7 @@ SELECT () {
         		clear
 
                 	if [[ "$TABLE_NAME" != "" ]]; then
-				echo "Syntax error! No column named $TABLE_COLUMN found in $TABLE_NAME"
+				echo "Syntax error! No column named $TABLE_COLUMN found in $TABLE_NAME."
                		else
                			echo "Syntax error! Unexpected error."
               		fi
@@ -256,7 +258,7 @@ WHERE () {
         local ARGS=($@)
 
 	if [[ "$IS_UPDATE_CLAUSE" == "T" ]]; then
-		WHR_TEMP="\$1!=\"ID\" ||"
+		WHR_TEMP="\$1!=\"ID\" &&"
 	else
 		WHR_TEMP="\$1==\"ID\" ||"
 	fi
@@ -514,14 +516,13 @@ VALUES () {
 		return 1
 	fi
 	
-	VALUES_ARGS="$*"
-	TEMP_VALUES=()
+	local VALUES_ARGS="$*"
+	local TEMP_VALUES=()
 	COLUMN_INDEXES=$COLUMN_INDEXES
 	N_O_COLUMNS=$N_O_COLS
-	IS_WORD_BEING_PROCESSED="F"
+	local IS_WORD_BEING_PROCESSED="F"
 	LINE=""
 	LINES=()
-	#DOUBLE_CHECK_VALUES_CLAUSE=$DOUBLE_CHECK_VALUES_CLAUSE
 
 	for (( i = 0; i < ${#VALUES_ARGS}; ++i )); do
 		CHAR=${VALUES_ARGS:i:1}

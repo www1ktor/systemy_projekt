@@ -24,6 +24,7 @@ LOGO () {
 	echo "    5. EXIT   PROGRAM    "
 }
 while [ true ]; do
+	clear
 	LOGO
 	
 	echo -n "choose option [1-5]: "
